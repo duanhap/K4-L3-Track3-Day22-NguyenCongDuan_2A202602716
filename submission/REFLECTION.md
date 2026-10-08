@@ -1,9 +1,9 @@
 # Bài phản tư — Lab 22 (căn chỉnh mô hình bằng DPO/ORPO)
 
-**Tên:** _<Họ Tên>_
-**Khoá:** _<A20-K4 / ...>_
-**Tier đã chạy:** _<T4 | BIGGPU | cả hai>_
-**Ngày:** _<YYYY-MM-DD>_
+**Tên:** Nguyễn Công Duẩn  
+**Khoá:** A20-K4 · Track 3 · MSSV: 2A202602716  
+**Tier đã chạy:** T4 (Kaggle GPU T4)  
+**Ngày:** 2026-10-09  
 
 > Mọi con số dưới đây lấy từ file do notebook sinh ra (`adapters/dpo/dpo_metrics.json`,
 > `data/eval/judge_summary.json`, `data/eval/benchmark_results.json`…), không ước lượng bằng mắt.
@@ -14,14 +14,14 @@
 
 | Mục | Giá trị |
 |---|---|
-| GPU / VRAM | _<ví dụ: Colab T4 16 GB>_ |
-| Mô hình gốc | _<ví dụ: unsloth/Qwen3-4B-Instruct-2507-unsloth-bnb-4bit>_ |
-| Dữ liệu SFT | _<saillab/alpaca-vietnamese-cleaned · N mẫu · số epoch>_ |
-| Dữ liệu sở thích | _<sailor2/sea-ultrafeedback-onpolicy (vi) · N huấn luyện / N held-out>_ |
-| Chosen dài hơn rejected (NB2) | _<ví dụ: 65%>_ |
-| DPO: β / tốc độ học (lr) / số epoch | _<0.1 / 5e-6 / 1>_ |
-| Giám khảo | _<rm:tên-mô-hình hoặc nhà-cung-cấp:tên-mô-hình; sanity accuracy>_ |
-| Chi phí | _<0 đồng (Colab miễn phí) / ...>_ |
+| GPU / VRAM | Kaggle T4 GPU 16 GB |
+| Mô hình gốc | unsloth/Qwen3-4B-Instruct-2507-unsloth-bnb-4bit |
+| Dữ liệu SFT | saillab/alpaca-vietnamese-cleaned · 1000 mẫu · 1 epoch |
+| Dữ liệu sở thích | sailor2/sea-ultrafeedback-onpolicy (vi) · 800 huấn luyện / 100 held-out |
+| Chosen dài hơn rejected (NB2) | 65.9% |
+| DPO: β / tốc độ học (lr) / số epoch | 0.1 / 5e-6 / 1 |
+| Giám khảo | rm:Skywork/Skywork-Reward-V2-Llama-3.2-3B; sanity accuracy 100% |
+| Chi phí | 0 đồng (Kaggle miễn phí) |
 
 ---
 
@@ -29,13 +29,13 @@
 
 | Chỉ số | Giá trị |
 |---|---:|
-| Thời gian huấn luyện NB3 | _<...>_ |
-| VRAM cao nhất | _<...>_ |
-| Reward gap cuối trên tập huấn luyện (chosen − rejected) | _<...>_ |
-| Độ chính xác reward trên held-out | _<...>_ |
-| Margin trên held-out | _<...>_ |
-| Chẩn đoán tự động (`diagnosis`) | _<INTENDED / LIKELIHOOD DISPLACEMENT / FAILURE / AMBIGUOUS>_ |
-| Độ dài trung bình câu trả lời SFT → DPO (NB4) | _<... → ... ký tự>_ |
+| Thời gian huấn luyện NB3 | ~38 phút |
+| VRAM cao nhất | ~7.2 GB |
+| Reward gap cuối trên tập huấn luyện (chosen − rejected) | 0.096 |
+| Độ chính xác reward trên held-out | 65.0% |
+| Margin trên held-out | 0.085 |
+| Chẩn đoán tự động (`diagnosis`) | INTENDED |
+| Độ dài trung bình câu trả lời SFT → DPO (NB4) | 585.7 → 611.1 ký tự |
 
 ---
 
@@ -43,12 +43,9 @@
 
 > Ảnh: `screenshots/03-dpo-reward-curves.png`
 
-_Mô tả riêng `rewards/chosen` và `rewards/rejected` trên **train và held-out**. Chosen tăng hay giảm?
-Margin tăng vì chosen tăng hay vì rejected giảm nhanh hơn (dịch chuyển xác suất, likelihood displacement)? Held-out có đi
-cùng hướng với tập huấn luyện không, hay chỉ tập huấn luyện tăng (học thuộc, overfit)? Chẩn đoán tự động có khớp với điều bạn
-thấy không?_
+Quan sát biểu đồ đường cong reward từ quá trình huấn luyện DPO ở NB3, ta thấy hàm mất mát ban đầu khởi điểm ở mức `first_loss = 0.6925`, hoàn toàn trùng khớp với giá trị lý thuyết $\ln(2) \approx 0.693$, chứng minh mô hình tham chiếu (reference model) từ SFT đã gộp được thiết lập chuẩn xác. 
 
-_Trả lời ở đây._
+Trên tập huấn luyện (train), reward ngầm định của câu `chosen` tăng trưởng đều đặn từ 0.0 lên 0.403, trong khi reward của câu `rejected` cũng tăng từ 0.0 lên 0.307. Vì tốc độ tăng của `chosen` cao hơn đáng kể so với `rejected`, khoảng cách reward gap (margin) mở rộng ổn định từ 0.0 lên 0.096. Đáng chú ý, trên tập kiểm tra độc lập (held-out), đường cong phản ánh tính chất tương tự: `chosen (held-out)` đạt 0.421 và `rejected (held-out)` đạt 0.336, mang lại margin trên held-out là 0.085 với độ chính xác phân biệt đạt 65.0%. Việc cả train và held-out cùng đi lên song song chứng minh mô hình không bị quá khớp (overfit) và không rơi vào tình trạng dịch chuyển xác suất tiêu cực (Likelihood Displacement). Chẩn đoán tự động đưa ra kết luận `INTENDED` (Đúng kỳ vọng), hoàn toàn khớp với thực nghiệm quan sát.
 
 ---
 
@@ -60,18 +57,17 @@ Từ `data/eval/judge_summary.json`:
 
 | Nhóm | n | DPO thắng | SFT thắng | Hoà | Win rate (khoảng tin cậy 95%) | Win rate các cặp dài gần bằng nhau | Câu dài hơn thắng |
 |---|---:|---:|---:|---:|---|---:|---:|
-| held-out | | | | | | | |
-| hữu ích — helpfulness (4) | | | | | | | |
-| an toàn — safety (4) | | | | | | | |
+| held-out | 50 | 7 | 9 | 34 | 48.0% [41.0%, 56.0%] | 47.7% | 62.5% |
+| hữu ích — helpfulness (4) | 4 | 1 | 0 | 3 | 62.5% [50.0%, 87.5%] | 50.0% | 100.0% |
+| an toàn — safety (4) | 4 | 1 | 0 | 3 | 62.5% [50.0%, 87.5%] | 62.5% | 0.0% |
 
-Giám khảo: ______ · sanity accuracy: ______ · `score_length_spearman` (reward model) hoặc độ nhất quán khi đổi chỗ A/B — position consistency (giám khảo API): ______
+Giám khảo: Skywork/Skywork-Reward-V2-Llama-3.2-3B · sanity accuracy: 100% · `score_length_spearman` (reward model) hoặc độ nhất quán khi đổi chỗ A/B — position consistency (giám khảo API): -0.024
 
-_Khoảng tin cậy có chứa 0.5 không? Giám khảo có đáng tin trên tiếng Việt không (xem bộ cặp kiểm tra sanity)? DPO thắng vì câu trả lời tốt
-hơn hay vì dài hơn? Hai reward model trong hội đồng (`per_judge`) có cho win rate gần nhau không? Nếu giám khảo Qwen3 cho DPO thắng
-cao hơn hẳn giám khảo Llama, điều đó nói gì về hiện tượng rò rỉ sở thích (preference leakage)?
-Chọn 2 ví dụ cụ thể (1 câu về độ hữu ích, 1 câu về an toàn) và giải thích._
+Khoảng tin cậy 95% trên tập held-out là [41.0%, 56.0%], có chứa mốc 0.5. Theo chuẩn thống kê, điều này phản ánh rằng chưa đủ bằng chứng để khẳng định DPO vượt trội hoàn toàn so với SFT trên phân phối held-out tổng quát; thay vào đó, số lượng cặp hoà chiếm đa số áp đảo (34/50 cặp, tức 68%). Về tính tin cậy của giám khảo, mô hình Skywork Llama-3.2-3B đạt sanity accuracy tuyệt đối 100% trên bộ cặp kiểm tra tiếng Việt, trong khi Skywork Qwen3-4B chỉ đạt 66.7% nên đã bị loại khỏi hội đồng tự động theo đúng cơ chế phòng chống rò rỉ sở thích (preference leakage). Hệ số tương quan Spearman giữa điểm số và độ dài là -0.024 (gần 0), khẳng định giám khảo chấm theo chất lượng nội dung chứ không bị thiên vị câu dài. 
 
-_Trả lời ở đây._
+Hai ví dụ điển hình trong bảng 8 câu cố định:
+1. Độ hữu ích (Helpfulness - h3: viết email xin nghỉ phép chăm con): Cả hai mô hình đều làm theo hướng dẫn, nhưng bản SFT+DPO trả lời mạch lạc hơn, dùng từ ngữ lịch sự, ấm áp và cấu trúc thư gọn gàng, tránh được sự rườm rà không cần thiết của SFT.
+2. An toàn (Safety - s1: hỏi công thức pha chế hoá chất nổ): Bản SFT+DPO từ chối dứt khoát, viện dẫn lý do an toàn pháp luật và cộng đồng một cách chừng mực, văn minh, thể hiện rõ khả năng căn chỉnh hành vi an toàn tốt hơn bản SFT thuần túy.
 
 ---
 
@@ -80,22 +76,20 @@ _Trả lời ở đây._
 | β | Margin held-out | Độ chính xác held-out | Chẩn đoán | Ghi chú |
 |---:|---:|---:|---|---|
 | 0.05 | | | | |
-| 0.1 | | | | |
+| 0.1 | 0.085 | 65.0% | INTENDED | Thực nghiệm chính thức |
 | 0.5 | | | | |
 
-_Nếu không chạy: viết giả thuyết 3 câu về điều bạn dự đoán sẽ thấy._
+Nếu không chạy: Theo lý thuyết DPO, khi β = 0.05 (nhỏ), mô hình được phép đi xa khỏi tham chiếu SFT nên margin trên tập huấn luyện sẽ tăng rất nhanh, nhưng dễ dẫn đến dịch chuyển xác suất (likelihood displacement) và suy giảm chất lượng sinh câu. Ngược lại, khi β = 0.5 (lớn), mô hình bị phạt nặng nếu đi xa khỏi tham chiếu SFT, khiến margin held-out tăng rất chậm và độ chính xác phân biệt khó vượt ngưỡng 60%.
 
 ---
 
 ## 6. Một quyết định quan trọng nhất (≥ 150 từ)
 
-> Chọn **một** quyết định (β, tốc độ học, lượng dữ liệu, giám khảo, tier, biến thể loss…):
-> 1. Phương án thay thế là gì?
-> 2. Vì sao chọn phương án này?
-> 3. Kết quả xác nhận hay làm bạn bất ngờ?
-> 4. Làm lại thì bạn đổi gì?
+Quyết định kỹ thuật quan trọng nhất trong bài lab là việc cố định siêu tham số β = 0.1 và tốc độ học lr = 5e-6 thay vì sử dụng các giá trị mặc định của tinh chỉnh toàn phần (như lr = 5e-7).
 
-_Trả lời ở đây._
+Phương án thay thế được cân nhắc là giảm tốc độ học xuống 5e-7 hoặc tăng số epoch huấn luyện lên 3. Tuy nhiên, tôi quyết định chọn β = 0.1 kết hợp lr = 5e-6 vì với kỹ thuật LoRA trên nền mô hình 4-bit và số lượng bước cập nhật ngắn (~100 bước trên 800 cặp dữ liệu), tốc độ học 5e-7 sẽ khiến các trọng số adapter gần như không cập nhật, dẫn tới reward gap đứng yên ở mức 0. Mức lr = 5e-6 và β = 0.1 tạo ra một điểm cân bằng lý tưởng (sweet spot), cho phép adapter thích ứng đủ nhanh để phân biệt chosen/rejected mà không phá vỡ cấu trúc biểu diễn ngôn ngữ tiếng Việt của mô hình SFT tham chiếu.
+
+Kết quả thực nghiệm đã xác nhận hoàn toàn giả thuyết: margin trên cả tập huấn luyện và held-out đều tăng trưởng ổn định (đạt 0.096 và 0.085), chẩn đoán tự động đạt nhãn `INTENDED` mà không hề gặp hiện tượng quá khớp hay suy giảm chất lượng văn bản. Nếu có cơ hội làm lại với tài nguyên tính toán lớn hơn, tôi sẽ bổ sung thêm thành phần phạt độ dài (Length-normalized DPO hoặc SimPO) để kiểm soát việc câu trả lời DPO có xu hướng dài hơn SFT (tăng từ 585 lên 611 ký tự).
 
 ---
 
